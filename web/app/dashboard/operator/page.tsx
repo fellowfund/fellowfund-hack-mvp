@@ -34,18 +34,14 @@ declare global {
   }
 }
 
-function FellowshipCard({
-  fellowshipId,
-  signer,
-}: {
-  fellowshipId: number;
-  signer: ethers.JsonRpcSigner;
-}) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [data, setData] = useState<any>(null);
+
+
+function FellowshipRow({ fellowship, isLoading, setIsLoading, message, setMessage, showSuccess, setShowSuccess, transactionHash, setTransactionHash }: { fellowship: Fellowship, isLoading: boolean, setIsLoading: (isLoading: boolean) => void, message: string, setMessage: (message: string) => void, showSuccess: boolean, setShowSuccess: (showSuccess: boolean) => void, transactionHash: string, setTransactionHash: (transactionHash: string) => void }) {
+
+  const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
+  const [contractDataLoading, setContractDataLoading] = useState<boolean>(false);
+  const [contractData, setContractData] = useState<any>(null);
   const [applications, setApplications] = useState<any>(null);
-  const [impactValue, setImpactValue] = useState<string>("");
-  const [applicantAddress, setApplicantAddress] = useState<string>("");
   const [applicationId, setApplicationId] = useState<string>("");
   const [achieved, setAchieved] = useState<boolean>(false);
 
@@ -65,7 +61,7 @@ function FellowshipCard({
   };
 
   const getFellowshipFromContract = async (fellowshipId: number) => {
-    setLoading(true);
+    setContractDataLoading(true);
     try {
       const contract = new ethers.Contract(
         process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "",
@@ -73,14 +69,14 @@ function FellowshipCard({
         signer
       );
       const fellowship = await contract.fellowships(fellowshipId);
-      setData(fellowship);
+      setContractData(fellowship);
       const applications = await contract.applications(fellowshipId);
       setApplications(applications);
       console.log("data: ", fellowship, applications);
     } catch (error) {
       console.error("Error fetching fellowship:", error);
     } finally {
-      setLoading(false);
+      setContractDataLoading(false);
     }
   }
 
@@ -95,14 +91,14 @@ function FellowshipCard({
       const proof = ethers.toUtf8Bytes("");
 
       const tx = await contract.setApplicantImpact(
-        fellowshipId,
+        Number(fellowship.fellowshipId),
         applicationId,
         achieved,
         proof
       );
       await tx.wait();
 
-      await getFellowshipFromContract(fellowshipId);
+      await getFellowshipFromContract(Number(fellowship.fellowshipId));
       setApplicationId("");
       setAchieved(false);
     } catch (error) {
@@ -111,75 +107,8 @@ function FellowshipCard({
   };
 
   useEffect(() => {
-    getFellowshipFromContract(fellowshipId);
-  }, [fellowshipId, signer]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center">
-        <RotatingLines
-          visible={true}
-          width="24"
-          strokeColor="#000000"
-          strokeWidth="5"
-          animationDuration="0.75"
-          ariaLabel="loading"
-        />
-      </div>
-    );
-  }
-
-  if (!data) return null;
-
-  return (
-    <div className="text-xs space-y-1">
-      <div><span className="font-semibold">Funds:</span> {ethers.formatEther(data.funds || '0')} ETH</div>
-      <div><span className="font-semibold">Grant per accepted:</span> {ethers.formatEther(data.grantPerAccepted || '0')} ETH</div>
-      <div><span className="font-semibold">Accepted:</span> {Number(data.acceptedApplicants)}</div>
-      <div><span className="font-semibold">Epoch started:</span> {data.epochStarted ? 'Yes' : 'No'}</div>
-      <div><span className="font-semibold">Status:</span> {Number(data.status)}</div>
-      {/* <div><span className="font-semibold">Applications:</span> {applications.length}</div> */}
-
-      <div className="mt-4 space-y-2">
-        <input
-          type="number"
-          placeholder="Application ID"
-          value={applicationId}
-          onChange={(e) => setApplicationId(e.target.value)}
-          className="block w-full rounded-md border-0 py-1.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
-        />
-        <div className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            id="achieved"
-            checked={achieved}
-            onChange={(e) => setAchieved(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
-          />
-          <label htmlFor="achieved" className="text-sm text-gray-900">
-            Impact Achieved
-          </label>
-        </div>
-        <button
-          onClick={handleSetImpact}
-          className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500"
-        >
-          Set Impact
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function OperatorPage() {
-  const [fellowships, setFellowships] = useState<Fellowship[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>("");
-  const [showSuccess, setShowSuccess] = useState<boolean>(false);
-  const [transactionHash, setTransactionHash] = useState<string>("");
-  const [userAddress, setUserAddress] = useState<string>("");
-
-  const [signer, setSigner] = useState<ethers.JsonRpcSigner | null>(null);
+    getFellowshipFromContract(Number(fellowship.fellowshipId));
+  }, [fellowship.fellowshipId, signer]);
 
   // Add this function to get signer
   const getSigner = async () => {
@@ -190,59 +119,6 @@ function OperatorPage() {
     return signer;
   };
 
-  // Modify the useEffect to use window.ethereum
-  useEffect(() => {
-    const loadFellowships = async () => {
-      try {
-        const query = `
-          query MyQuery {
-            fellowships {
-              acceptedApplicants
-              applicationDeadline
-              blockTimestamp
-              blockNumber
-              epochEndTime
-              epochStarted
-              fellowshipId
-              applicants {
-                id
-              }
-              funds
-              grantPerAccepted
-              id
-              marketDeadline
-              metadata
-              resolved
-              status
-              totalApplications
-              transactionHash
-            }
-          }
-        `;
-
-        const response = await fetch(
-          "https://api.studio.thegraph.com/query/73364/fello-fund/version/latest",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ query }),
-          }
-        );
-
-        const data = await response.json();
-        if (data.data?.fellowships) {
-          console.log("data.data.fellowships: ", data.data.fellowships);
-          setFellowships(data.data.fellowships);
-        }
-      } catch (error) {
-        console.error("Error loading fellowships:", error);
-      }
-    };
-
-    loadFellowships();
-  }, []);
 
   const handleOpenMarkets = async (fellowshipId: number) => {
     setIsLoading(true);
@@ -316,7 +192,7 @@ function OperatorPage() {
         signer
       );
 
-      const tx = await contract.resolveMarket(fellowshipId);
+      const tx = await contract.resolveFellowship(fellowshipId);
       const receipt = await tx.wait();
 
       setShowSuccess(true);
@@ -334,6 +210,185 @@ function OperatorPage() {
   useEffect(() => {
     getSigner();
   }, []);
+
+  return <tr key={fellowship.fellowshipId}>
+    <td className="whitespace-nowrap py-4 pl-5 pr-3 text-sm font-medium text-black">
+      {JSON.parse(fellowship.metadata).name}
+    </td>
+    <td className="whitespace-nowrap px-3 py-4 text-sm">
+      <span
+        className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${fellowship.status === 0
+          ? "bg-gray-100 text-gray-800"
+          : fellowship.status === 1
+            ? "bg-yellow-100 text-yellow-800"
+            : fellowship.status === 2
+              ? "bg-blue-100 text-blue-800"
+              : fellowship.status === 3
+                ? "bg-green-100 text-green-800"
+                : "bg-purple-100 text-purple-800"
+          }`}
+      >
+        {
+          [
+            "Created",
+            "AcceptingApplications",
+            "MarketOpen",
+            "EpochStarted",
+            "Resolved",
+          ][contractData?.status]
+        }
+      </span>
+    </td>
+    <td className="whitespace-nowrap px-3 py-4 text-sm">
+      {fellowship?.totalApplications || 0}
+    </td>
+    <td className="whitespace-nowrap px-3 py-4 text-sm">
+      <div className="flex gap-2">
+        <button
+          onClick={() =>
+            handleOpenMarkets(
+              Number(fellowship.fellowshipId)
+            )
+          }
+          disabled={fellowship.status !== 1 || isLoading}
+          className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Open Markets
+        </button>
+        <button
+          onClick={() =>
+            handleEvaluateMarket(
+              Number(fellowship.fellowshipId)
+            )
+          }
+          disabled={isLoading}
+          className="rounded bg-green-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Evaluate Market
+        </button>
+        <button
+          onClick={() => handleResolveMarket(Number(fellowship.fellowshipId))}
+          disabled={isLoading}
+          className="rounded bg-purple-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Resolve Market
+        </button>
+      </div>
+    </td>
+    <td className="whitespace-nowrap px-3 py-4 text-sm">
+      {signer && (
+        contractDataLoading ? <div className="flex justify-center">
+          <RotatingLines
+            visible={true}
+            width="24"
+            strokeColor="#000000"
+            strokeWidth="5"
+            animationDuration="0.75"
+            ariaLabel="loading"
+          />
+        </div> : contractData && <div className="text-xs space-y-1">
+          <div><span className="font-semibold">Funds:</span> {ethers.formatEther(contractData.funds || '0')} ETH</div>
+          <div><span className="font-semibold">Grant per accepted:</span> {ethers.formatEther(contractData.grantPerAccepted || '0')} ETH</div>
+          <div><span className="font-semibold">Accepted:</span> {Number(contractData.acceptedApplicants)}</div>
+          <div><span className="font-semibold">Epoch started:</span> {contractData.epochStarted ? 'Yes' : 'No'}</div>
+          <div><span className="font-semibold">Status:</span> {Number(contractData.status)}</div>
+          {/* <div><span className="font-semibold">Applications:</span> {applications.length}</div> */}
+
+          <div className="mt-4 space-y-2">
+            <input
+              type="number"
+              placeholder="Application ID"
+              value={applicationId}
+              onChange={(e) => setApplicationId(e.target.value)}
+              className="block w-full rounded-md border-0 py-1.5 px-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6"
+            />
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="achieved"
+                checked={achieved}
+                onChange={(e) => setAchieved(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+              />
+              <label htmlFor="achieved" className="text-sm text-gray-900">
+                Impact Achieved
+              </label>
+            </div>
+            <button
+              onClick={handleSetImpact}
+              className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500"
+            >
+              Set Impact
+            </button>
+          </div>
+        </div>
+      )}
+    </td>
+  </tr>
+}
+
+function OperatorPage() {
+  const [fellowships, setFellowships] = useState<Fellowship[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [message, setMessage] = useState<string>("");
+  const [showSuccess, setShowSuccess] = useState<boolean>(false);
+  const [transactionHash, setTransactionHash] = useState<string>("");
+
+  // Modify the useEffect to use window.ethereum
+  useEffect(() => {
+    const loadFellowships = async () => {
+      try {
+        const query = `
+          query MyQuery {
+            fellowships {
+              acceptedApplicants
+              applicationDeadline
+              blockTimestamp
+              blockNumber
+              epochEndTime
+              epochStarted
+              fellowshipId
+              applicants {
+                id
+              }
+              funds
+              grantPerAccepted
+              id
+              marketDeadline
+              metadata
+              resolved
+              status
+              totalApplications
+              transactionHash
+            }
+          }
+        `;
+
+        const response = await fetch(
+          "https://api.studio.thegraph.com/query/73364/fello-fund-op/version/latest",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ query }),
+          }
+        );
+
+        const data = await response.json();
+        if (data.data?.fellowships) {
+          console.log("data.data.fellowships: ", data.data.fellowships);
+          setFellowships(data.data.fellowships);
+        }
+      } catch (error) {
+        console.error("Error loading fellowships:", error);
+      }
+    };
+
+    loadFellowships();
+  }, []);
+
+
 
   return (
     <div className="my-10 space-y-6 sm:px-6 lg:col-span-9 lg:px-0">
@@ -374,79 +429,18 @@ function OperatorPage() {
                   </thead>
                   <tbody className="divide-y divide-zinc-200 bg-white">
                     {fellowships.map((fellowship) => (
-                      <tr key={fellowship.id}>
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-black sm:pl-0">
-                          {JSON.parse(fellowship.metadata).name}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          <span
-                            className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${fellowship.status === 0
-                                ? "bg-gray-100 text-gray-800"
-                                : fellowship.status === 1
-                                  ? "bg-yellow-100 text-yellow-800"
-                                  : fellowship.status === 2
-                                    ? "bg-blue-100 text-blue-800"
-                                    : fellowship.status === 3
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-purple-100 text-purple-800"
-                              }`}
-                          >
-                            {
-                              [
-                                "Created",
-                                "AcceptingApplications",
-                                "MarketOpen",
-                                "EpochStarted",
-                                "Resolved",
-                              ][fellowship.status]
-                            }
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          {fellowship?.totalApplications || 0}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleOpenMarkets(
-                                  Number(fellowship.fellowshipId)
-                                )
-                              }
-                              disabled={fellowship.status !== 1 || isLoading}
-                              className="rounded bg-blue-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Open Markets
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleEvaluateMarket(
-                                  Number(fellowship.fellowshipId)
-                                )
-                              }
-                              disabled={isLoading}
-                              className="rounded bg-green-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Evaluate Market
-                            </button>
-                            <button
-                              onClick={() => handleResolveMarket(Number(fellowship.fellowshipId))}
-                              disabled={isLoading}
-                              className="rounded bg-purple-600 px-2 py-1 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Resolve Market
-                            </button>
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          {signer && (
-                            <FellowshipCard
-                              fellowshipId={Number(fellowship.fellowshipId)}
-                              signer={signer}
-                            />
-                          )}
-                        </td>
-                      </tr>
+                      <FellowshipRow
+                        key={fellowship.fellowshipId}
+                        fellowship={fellowship}
+                        isLoading={isLoading}
+                        setIsLoading={setIsLoading}
+                        message={message}
+                        setMessage={setMessage}
+                        showSuccess={showSuccess}
+                        setShowSuccess={setShowSuccess}
+                        transactionHash={transactionHash}
+                        setTransactionHash={setTransactionHash}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -462,7 +456,7 @@ function OperatorPage() {
           <RotatingLines
             visible={true}
             width="40"
-            strokeColor="#000000"
+            strokeColor="#ffffff"
             strokeWidth="5"
             animationDuration="0.75"
             ariaLabel="rotating-lines-loading"
